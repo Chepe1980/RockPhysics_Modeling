@@ -288,3 +288,39 @@ if uploaded_file is not None:
     ax1[1].legend(fontsize='small')
 
     st.pyplot(fig1)
+
+    # Add additional scatter plots
+    st.subheader("Cross-Plot Analysis")
+    
+    fig2, ax2 = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
+    
+    # Scatter plot 1: IP vs Vp/Vs for Brine
+    sc1 = ax2[0].scatter(logs_subset.IP_FRMB, logs_subset.VPVS_FRMB, 20, logs_subset.LFC_B, 
+                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
+    ax2[0].set_title("FRM to Brine")
+    ax2[0].set_xlabel("IP [m/s*g/cc]")
+    ax2[0].set_ylabel("Vp/Vs")
+    ax2[0].set_xlim(3000, 16000)
+    ax2[0].set_ylim(1.5, 3)
+    
+    # Scatter plot 2: IP vs Vp/Vs for Oil
+    sc2 = ax2[1].scatter(logs_subset.IP_FRMO, logs_subset.VPVS_FRMO, 20, logs_subset.LFC_O,
+                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
+    ax2[1].set_title("FRM to Oil")
+    ax2[1].set_xlabel("IP [m/s*g/cc]")
+    ax2[1].set_xlim(3000, 16000)
+    ax2[1].set_ylim(1.5, 3)
+    
+    # Scatter plot 3: IP vs Vp/Vs for Gas
+    sc3 = ax2[2].scatter(logs_subset.IP_FRMG, logs_subset.VPVS_FRMG, 20, logs_subset.LFC_G,
+                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
+    ax2[2].set_title("FRM to Gas")
+    ax2[2].set_xlabel("IP [m/s*g/cc]")
+    ax2[2].set_xlim(3000, 16000)
+    ax2[2].set_ylim(1.5, 3)
+    
+    # Add colorbar
+    cbar = fig2.colorbar(sc3, ax=ax2, ticks=[0, 1, 2, 3, 4])
+    cbar.ax.set_yticklabels(['None', 'Brine', 'Oil', 'Gas', 'Shale'])
+    
+    st.pyplot(fig2)

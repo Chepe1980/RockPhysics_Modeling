@@ -258,6 +258,10 @@ if uploaded_file is not None:
     # Keep original matplotlib plots as alternative view
     st.subheader("Static Plots for Reference")
     
+    # Define color map for facies
+    ccc = ['#B3B3B3', 'blue', 'green', 'red', '#996633']  # Colors for LFC
+    cmap_facies = ListedColormap(ccc, 'indexed')
+    
     # Figure 1: Log Plots
     fig1, ax1 = plt.subplots(nrows=1, ncols=4, figsize=(12, 8))
     ax1[0].plot(logs_subset.VSH, logs_subset.DEPTH, '-g', label='Vsh')

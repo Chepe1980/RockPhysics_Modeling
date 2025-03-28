@@ -6,7 +6,7 @@ from matplotlib.colors import ListedColormap
 from io import StringIO
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
-from bokeh.layouts import row, column
+from bokeh.layouts import row, column, gridplot
 from bokeh.transform import factor_cmap
 from bokeh.embed import components
 import streamlit.components.v1 as html_components
@@ -163,47 +163,61 @@ if uploaded_file is not None:
     # Color mapping
     lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
 
-    # Create cross-plots
-    st.subheader("Interactive Cross-Plots")
+    # Create all interactive plots
+    st.subheader("Interactive Cross-Plots with Lasso Selection")
     st.markdown("""
-        **Instructions**: Use the lasso tool ( ) to select points in cross-plots. 
-        Selected points will highlight in all plots.
+        **Instructions**: 
+        1. Click the lasso tool ( ) in the toolbar
+        2. Draw a shape around points to select them
+        3. Selected points will highlight in orange across all plots
     """)
 
+    # Common tools for all plots
     tools = "pan,wheel_zoom,box_zoom,reset,lasso_select"
-    plot_width, plot_height = 350, 350
+    plot_size = 400
 
-    p1 = figure(tools=tools, width=plot_width, height=plot_height, 
+    # Cross-plot 1: Brine
+    p1 = figure(tools=tools, width=plot_size, height=plot_size,
                title="FRM to Brine", x_range=(3000, 16000), y_range=(1.5, 3))
-    p1.circle('ip_b', 'vpvs_b', source=source, size=8, alpha=0.6,
-             color=factor_cmap('lfc_b', palette=lfc_palette, factors=['1','2','3','4']),
-             selection_color="orange", nonselection_alpha=0.1)
+    p1.scatter('ip_b', 'vpvs_b', source=source, size=8, alpha=0.6,
+              color=factor_cmap('lfc_b', palette=lfc_palette, factors=['1','2','3','4']),
+              selection_color="orange", nonselection_alpha=0.1)
+    p1.xaxis.axis_label = "IP [m/s*g/cc]"
+    p1.yaxis.axis_label = "Vp/Vs"
 
-    p2 = figure(tools=tools, width=plot_width, height=plot_height, 
+    # Cross-plot 2: Oil
+    p2 = figure(tools=tools, width=plot_size, height=plot_size,
                title="FRM to Oil", x_range=p1.x_range, y_range=p1.y_range)
-    p2.circle('ip_o', 'vpvs_o', source=source, size=8, alpha=0.6,
-             color=factor_cmap('lfc_o', palette=lfc_palette, factors=['1','2','3','4']),
-             selection_color="orange", nonselection_alpha=0.1)
+    p2.scatter('ip_o', 'vpvs_o', source=source, size=8, alpha=0.6,
+              color=factor_cmap('lfc_o', palette=lfc_palette, factors=['1','2','3','4']),
+              selection_color="orange", nonselection_alpha=0.1)
+    p2.xaxis.axis_label = "IP [m/s*g/cc]"
+    p2.yaxis.axis_label = "Vp/Vs"
 
-    p3 = figure(tools=tools, width=plot_width, height=plot_height, 
+    # Cross-plot 3: Gas
+    p3 = figure(tools=tools, width=plot_size, height=plot_size,
                title="FRM to Gas", x_range=p1.x_range, y_range=p1.y_range)
-    p3.circle('ip_g', 'vpvs_g', source=source, size=8, alpha=0.6,
-             color=factor_cmap('lfc_g', palette=lfc_palette, factors=['1','2','3','4']),
-             selection_color="orange", nonselection_alpha=0.1)
+    p3.scatter('ip_g', 'vpvs_g', source=source, size=8, alpha=0.6,
+              color=factor_cmap('lfc_g', palette=lfc_palette, factors=['1','2','3','4']),
+              selection_color="orange", nonselection_alpha=0.1)
+    p3.xaxis.axis_label = "IP [m/s*g/cc]"
+    p3.yaxis.axis_label = "Vp/Vs"
 
-    # Create log plots
-    log_plot = figure(width=800, height=500, title="Selected Logs", 
-                     y_range=(depth_max, depth_min),
-                     x_range=(0, 1))
+    # Log plot
+    log_plot = figure(width=800, height=400, title="Selected Logs",
+                     y_range=(depth_max, depth_min), x_range=(0, 1),
+                     tools="pan,wheel_zoom,box_zoom,reset")
     log_plot.line('vsh', 'depth', source=source, line_color='green', legend_label='Vsh')
     log_plot.line('sw', 'depth', source=source, line_color='blue', legend_label='Sw')
     log_plot.line('phi', 'depth', source=source, line_color='black', legend_label='PHI')
+    log_plot.xaxis.axis_label = "Normalized Values"
+    log_plot.yaxis.axis_label = "Depth"
 
     # Add selected points to log plot
-    selected_renderer = log_plot.circle(x=0.5, y='depth', source=source, size=10, 
-                                      color='orange', alpha=0, 
-                                      selection_fill_color='orange',
-                                      selection_alpha=0.8)
+    selected_renderer = log_plot.scatter(x=0.5, y='depth', source=source, size=10,
+                                       color='orange', alpha=0,
+                                       selection_color="orange",
+                                       selection_alpha=0.8)
 
     # JavaScript callback for interactivity
     callback = CustomJS(args=dict(source=source, selected_renderer=selected_renderer), code="""
@@ -227,16 +241,14 @@ if uploaded_file is not None:
         p.js_on_event('selectiongeometry', callback)
         p.select(LassoSelectTool).select_every_mousemove = False
 
-    # Create layout and components
-    layout = column(
-        row(p1, p2, p3),
-        log_plot
-    )
-    
+    # Create layout
+    cross_plots = gridplot([[p1, p2, p3]])
+    layout = column(cross_plots, log_plot)
+
     # Generate components
     script, div = components(layout)
     
-    # Display using HTML
+    # Display using HTML with custom CSS for better tool visibility
     html_components.html(
         f"""
         <!DOCTYPE html>
@@ -245,6 +257,14 @@ if uploaded_file is not None:
             <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
             <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
             <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
+            <style>
+                .bk-tool-icon-lasso-select {{
+                    background-image: url('data:image/svg+xml;utf8,<svg fill=\"black\" viewBox=\"0 0 24 24\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z\"/></svg>') !important;
+                }}
+                .bk-toolbar-button:hover {{
+                    background-color: #e0e0e0 !important;
+                }}
+            </style>
         </head>
         <body>
             {div}
@@ -255,7 +275,7 @@ if uploaded_file is not None:
         height=900
     )
 
-    # Keep original matplotlib plots as alternative view
+    # Static plots for reference
     st.subheader("Static Plots for Reference")
     
     # Define color map for facies
@@ -288,39 +308,3 @@ if uploaded_file is not None:
     ax1[1].legend(fontsize='small')
 
     st.pyplot(fig1)
-
-    # Add additional scatter plots
-    st.subheader("Cross-Plot Analysis")
-    
-    fig2, ax2 = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
-    
-    # Scatter plot 1: IP vs Vp/Vs for Brine
-    sc1 = ax2[0].scatter(logs_subset.IP_FRMB, logs_subset.VPVS_FRMB, 20, logs_subset.LFC_B, 
-                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
-    ax2[0].set_title("FRM to Brine")
-    ax2[0].set_xlabel("IP [m/s*g/cc]")
-    ax2[0].set_ylabel("Vp/Vs")
-    ax2[0].set_xlim(3000, 16000)
-    ax2[0].set_ylim(1.5, 3)
-    
-    # Scatter plot 2: IP vs Vp/Vs for Oil
-    sc2 = ax2[1].scatter(logs_subset.IP_FRMO, logs_subset.VPVS_FRMO, 20, logs_subset.LFC_O,
-                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
-    ax2[1].set_title("FRM to Oil")
-    ax2[1].set_xlabel("IP [m/s*g/cc]")
-    ax2[1].set_xlim(3000, 16000)
-    ax2[1].set_ylim(1.5, 3)
-    
-    # Scatter plot 3: IP vs Vp/Vs for Gas
-    sc3 = ax2[2].scatter(logs_subset.IP_FRMG, logs_subset.VPVS_FRMG, 20, logs_subset.LFC_G,
-                        marker='o', edgecolors='none', alpha=0.5, cmap=cmap_facies, vmin=0, vmax=4)
-    ax2[2].set_title("FRM to Gas")
-    ax2[2].set_xlabel("IP [m/s*g/cc]")
-    ax2[2].set_xlim(3000, 16000)
-    ax2[2].set_ylim(1.5, 3)
-    
-    # Add colorbar
-    cbar = fig2.colorbar(sc3, ax=ax2, ticks=[0, 1, 2, 3, 4])
-    cbar.ax.set_yticklabels(['None', 'Brine', 'Oil', 'Gas', 'Shale'])
-    
-    st.pyplot(fig2)

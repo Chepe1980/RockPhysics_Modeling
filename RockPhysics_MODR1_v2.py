@@ -8,6 +8,8 @@ from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
 from bokeh.layouts import row, column
 from bokeh.transform import factor_cmap
+from bokeh.embed import components
+import streamlit.components.v1 as html_components
 
 # Function for VRH averaging
 def vrh(volumes, k, mu):
@@ -156,7 +158,7 @@ if uploaded_file is not None:
         lfc_o=logs_subset.LFC_O.astype(str),
         lfc_g=logs_subset.LFC_G.astype(str),
         selected=np.zeros(len(logs_subset)),  # Selection array
-    ))
+    )
 
     # Color mapping
     lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
@@ -225,12 +227,33 @@ if uploaded_file is not None:
         p.js_on_event('selectiongeometry', callback)
         p.select(LassoSelectTool).select_every_mousemove = False
 
-    # Create the layout and display
+    # Create layout and components
     layout = column(
         row(p1, p2, p3),
         log_plot
     )
-    st.bokeh_chart(layout)
+    
+    # Generate components
+    script, div = components(layout)
+    
+    # Display using HTML
+    html_components.html(
+        f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
+            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
+            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
+        </head>
+        <body>
+            {div}
+            {script}
+        </body>
+        </html>
+        """,
+        height=900
+    )
 
     # Keep original matplotlib plots as alternative view
     st.subheader("Static Plots for Reference")

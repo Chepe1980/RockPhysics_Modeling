@@ -4,12 +4,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.colors as colors
 from io import StringIO
-from bokeh.plotting import figure, show
+from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
 from bokeh.layouts import row, column
-from bokeh.palettes import Category10
 from bokeh.transform import factor_cmap
-import streamlit.components.v1 as components
 
 # Function for VRH averaging
 def vrh(volumes, k, mu):
@@ -227,14 +225,12 @@ if uploaded_file is not None:
         p.js_on_event('selectiongeometry', callback)
         p.select(LassoSelectTool).select_every_mousemove = False
 
-    # Display plots
-    components.html(
-        column(
-            row(p1, p2, p3),
-            log_plot
-        ).components,
-        height=900
+    # Create the layout and display
+    layout = column(
+        row(p1, p2, p3),
+        log_plot
     )
+    st.bokeh_chart(layout)
 
     # Keep original matplotlib plots as alternative view
     st.subheader("Static Plots for Reference")

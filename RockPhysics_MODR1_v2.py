@@ -3,10 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.colors import ListedColormap
-from io import StringIO
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
-from bokeh.layouts import row, column, gridplot
+from bokeh.layouts import gridplot, column
 from bokeh.transform import factor_cmap
 from bokeh.embed import components
 import streamlit.components.v1 as components
@@ -242,35 +241,31 @@ if uploaded_file is not None:
         p.select(LassoSelectTool).select_every_mousemove = False
 
     # Create layout
-    cross_plots = gridplot([[p1, p2, p3]])
-    layout = column(cross_plots, log_plot)
+    cross_plots = gridplot([[p1, p2, p3]], toolbar_location='right')
+    full_layout = column(cross_plots, log_plot)
 
     # Generate components
-    script, div = components(layout)
+    script, div = components(full_layout)
     
     # Display using HTML with proper Bokeh resources
     components.html(
         f"""
-        <link 
-            href="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.css" 
-            rel="stylesheet" type="text/css">
-        <link 
-            href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.css" 
-            rel="stylesheet" type="text/css">
-        <link 
-            href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.css" 
-            rel="stylesheet" type="text/css">
+        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.css" rel="stylesheet">
+        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.css" rel="stylesheet">
+        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.css" rel="stylesheet">
         
         <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
         <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
         <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
         
         <style>
-            .bk-toolbar-button .bk-tool-icon-lasso-select {{
+            .bk-tool-icon-lasso-select {{
                 visibility: visible !important;
             }}
-            .bk-toolbar-button:hover {{
-                background-color: #f0f0f0 !important;
+            .bk-toolbar-button {{
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                margin: 2px;
             }}
         </style>
         

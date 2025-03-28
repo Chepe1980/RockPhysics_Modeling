@@ -1,4 +1,4 @@
-import streamlit as st
+      import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -9,7 +9,7 @@ from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
 from bokeh.layouts import row, column, gridplot
 from bokeh.transform import factor_cmap
 from bokeh.embed import components
-import streamlit.components.v1 as html_components
+import streamlit.components.v1 as components
 
 # Function for VRH averaging
 def vrh(volumes, k, mu):
@@ -173,11 +173,11 @@ if uploaded_file is not None:
     """)
 
     # Common tools for all plots
-    tools = "pan,wheel_zoom,box_zoom,reset,lasso_select"
+    TOOLS = "pan,wheel_zoom,box_zoom,reset,lasso_select"
     plot_size = 400
 
     # Cross-plot 1: Brine
-    p1 = figure(tools=tools, width=plot_size, height=plot_size,
+    p1 = figure(tools=TOOLS, width=plot_size, height=plot_size,
                title="FRM to Brine", x_range=(3000, 16000), y_range=(1.5, 3))
     p1.scatter('ip_b', 'vpvs_b', source=source, size=8, alpha=0.6,
               color=factor_cmap('lfc_b', palette=lfc_palette, factors=['1','2','3','4']),
@@ -186,7 +186,7 @@ if uploaded_file is not None:
     p1.yaxis.axis_label = "Vp/Vs"
 
     # Cross-plot 2: Oil
-    p2 = figure(tools=tools, width=plot_size, height=plot_size,
+    p2 = figure(tools=TOOLS, width=plot_size, height=plot_size,
                title="FRM to Oil", x_range=p1.x_range, y_range=p1.y_range)
     p2.scatter('ip_o', 'vpvs_o', source=source, size=8, alpha=0.6,
               color=factor_cmap('lfc_o', palette=lfc_palette, factors=['1','2','3','4']),
@@ -195,7 +195,7 @@ if uploaded_file is not None:
     p2.yaxis.axis_label = "Vp/Vs"
 
     # Cross-plot 3: Gas
-    p3 = figure(tools=tools, width=plot_size, height=plot_size,
+    p3 = figure(tools=TOOLS, width=plot_size, height=plot_size,
                title="FRM to Gas", x_range=p1.x_range, y_range=p1.y_range)
     p3.scatter('ip_g', 'vpvs_g', source=source, size=8, alpha=0.6,
               color=factor_cmap('lfc_g', palette=lfc_palette, factors=['1','2','3','4']),
@@ -248,29 +248,34 @@ if uploaded_file is not None:
     # Generate components
     script, div = components(layout)
     
-    # Display using HTML with custom CSS for better tool visibility
-    html_components.html(
+    # Display using HTML with proper Bokeh resources
+    components.html(
         f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
-            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
-            <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
-            <style>
-                .bk-tool-icon-lasso-select {{
-                    background-image: url('data:image/svg+xml;utf8,<svg fill=\"black\" viewBox=\"0 0 24 24\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z\"/></svg>') !important;
-                }}
-                .bk-toolbar-button:hover {{
-                    background-color: #e0e0e0 !important;
-                }}
-            </style>
-        </head>
-        <body>
-            {div}
-            {script}
-        </body>
-        </html>
+        <link 
+            href="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.css" 
+            rel="stylesheet" type="text/css">
+        <link 
+            href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.css" 
+            rel="stylesheet" type="text/css">
+        <link 
+            href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.css" 
+            rel="stylesheet" type="text/css">
+        
+        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
+        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
+        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
+        
+        <style>
+            .bk-toolbar-button .bk-tool-icon-lasso-select {{
+                visibility: visible !important;
+            }}
+            .bk-toolbar-button:hover {{
+                background-color: #f0f0f0 !important;
+            }}
+        </style>
+        
+        {div}
+        {script}
         """,
         height=900
     )

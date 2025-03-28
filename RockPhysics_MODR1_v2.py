@@ -157,8 +157,8 @@ if uploaded_file is not None:
         lfc_b=logs_subset.LFC_B.astype(str),
         lfc_o=logs_subset.LFC_O.astype(str),
         lfc_g=logs_subset.LFC_G.astype(str),
-        selected=np.zeros(len(logs_subset)),  # Selection array
-    )
+        selected=np.zeros(len(logs_subset))  # This was missing closing parenthesis
+    ))  # This closes the ColumnDataSource call
 
     # Color mapping
     lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']

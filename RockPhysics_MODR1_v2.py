@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import matplotlib.colors as colors
+from matplotlib.colors import ListedColormap
 from io import StringIO
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
@@ -88,7 +88,7 @@ if uploaded_file is not None:
     # Process data
     shale = logs.VSH.values
     sand = 1 - shale - logs.PHI.values
-    shaleN = shale / (shale + sand)  # Normalized volumes
+    shaleN = shale / (shale + sand)
     sandN = sand / (shale + sand)
     k_u, k_l, mu_u, mu_l, k0, mu0 = vrh([shaleN, sandN], [k_sh, k_qz], [mu_sh, mu_qz])
 
@@ -157,8 +157,8 @@ if uploaded_file is not None:
         lfc_b=logs_subset.LFC_B.astype(str),
         lfc_o=logs_subset.LFC_O.astype(str),
         lfc_g=logs_subset.LFC_G.astype(str),
-        selected=np.zeros(len(logs_subset))  # This was missing closing parenthesis
-    ))  # This closes the ColumnDataSource call
+        selected=np.zeros(len(logs_subset))
+    ))
 
     # Color mapping
     lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
@@ -259,7 +259,7 @@ if uploaded_file is not None:
     st.subheader("Static Plots for Reference")
     
     # Define color map for facies
-    ccc = ['#B3B3B3', 'blue', 'green', 'red', '#996633']  # Colors for LFC
+    ccc = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
     cmap_facies = ListedColormap(ccc, 'indexed')
     
     # Figure 1: Log Plots

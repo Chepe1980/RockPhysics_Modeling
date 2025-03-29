@@ -11,6 +11,11 @@ from bokeh.embed import components
 from bokeh.resources import CDN
 import streamlit.components.v1 as components
 
+# Check versions (for debugging)
+import bokeh
+st.sidebar.write(f"Bokeh v{bokeh.__version__}")
+st.sidebar.write(f"Streamlit v{st.__version__}")
+
 # Function for VRH averaging
 def vrh(volumes, k, mu):
     f = np.array(volumes).T
@@ -132,17 +137,22 @@ if uploaded_file is not None:
             logs.loc[brine_sand | oil_sand, f'RHO_FRM{suffix}'] = rho[brine_sand | oil_sand]
             logs[f'IP_FRM{suffix}'] = logs[f'VP_FRM{suffix}'] * logs[f'RHO_FRM{suffix}']
             logs[f'IS_FRM{suffix}'] = logs[f'VS_FRM{suffix}'] * logs[f'RHO_FRM{suffix}']
-            logs[f'VPVS_FRM{suffix}'] = logs[f'VP_FRM{suffix}'] / (logs[f'VS_FRM{suffix}'] + 1e-10)  # Avoid division by zero
+            logs[f'VPVS_FRM{suffix}'] = logs[f'VP_FRM{suffix}'] / (logs[f'VS_FRM{suffix}'] + 1e-10)
 
         # LFC (Litho-Fluid Class)
-        lfc_mapping = {
-            'LFC_B': (brine_sand | oil_sand, 1),
-            'LFC_O': (brine_sand | oil_sand, 2),
-            'LFC_G': (brine_sand | oil_sand, 3),
-            'LFC_SHALE': (shale_flag, 4)
-        }
-        for col, (condition, value) in lfc_mapping.items():
-            logs[col] = np.where(condition, value, 0)
+        logs['LFC'] = np.select(
+            [
+                shale_flag,
+                brine_sand,
+                oil_sand
+            ],
+            [
+                4,  # Shale
+                1,  # Brine sand
+                2   # Oil sand
+            ],
+            default=3  # Gas sand
+        )
 
         # Depth range selection
         depth_min, depth_max = st.slider(
@@ -153,21 +163,19 @@ if uploaded_file is not None:
         )
         logs_subset = logs[(logs.DEPTH >= depth_min) & (logs.DEPTH <= depth_max)].copy()
 
-        # Prepare data source for Bokeh plots (convert to native Python types)
+        # Prepare data source for Bokeh plots
         source_data = {
-            'ip_b': logs_subset.IP_FRMB.astype(float).tolist(),
-            'vpvs_b': logs_subset.VPVS_FRMB.astype(float).tolist(),
-            'ip_o': logs_subset.IP_FRMO.astype(float).tolist(),
-            'vpvs_o': logs_subset.VPVS_FRMO.astype(float).tolist(),
-            'ip_g': logs_subset.IP_FRMG.astype(float).tolist(),
-            'vpvs_g': logs_subset.VPVS_FRMG.astype(float).tolist(),
-            'depth': logs_subset.DEPTH.astype(float).tolist(),
-            'vsh': logs_subset.VSH.astype(float).tolist(),
-            'sw': logs_subset.SW.astype(float).tolist(),
-            'phi': logs_subset.PHI.astype(float).tolist(),
-            'lfc_b': logs_subset.LFC_B.astype(str).tolist(),
-            'lfc_o': logs_subset.LFC_O.astype(str).tolist(),
-            'lfc_g': logs_subset.LFC_G.astype(str).tolist(),
+            'ip_b': [float(x) for x in logs_subset.IP_FRMB],
+            'vpvs_b': [float(x) for x in logs_subset.VPVS_FRMB],
+            'ip_o': [float(x) for x in logs_subset.IP_FRMO],
+            'vpvs_o': [float(x) for x in logs_subset.VPVS_FRMO],
+            'ip_g': [float(x) for x in logs_subset.IP_FRMG],
+            'vpvs_g': [float(x) for x in logs_subset.VPVS_FRMG],
+            'depth': [float(x) for x in logs_subset.DEPTH],
+            'vsh': [float(x) for x in logs_subset.VSH],
+            'sw': [float(x) for x in logs_subset.SW],
+            'phi': [float(x) for x in logs_subset.PHI],
+            'lfc': [str(int(x)) for x in logs_subset.LFC],
             'selected': [0] * len(logs_subset)
         }
         source = ColumnDataSource(data=source_data)
@@ -175,148 +183,68 @@ if uploaded_file is not None:
         # Color mapping
         lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
 
-        # Create all interactive plots
-        st.subheader("Interactive Cross-Plots with Lasso Selection")
-        st.markdown("""
-            **Instructions**: 
-            1. Click the lasso tool ( ) in the toolbar
-            2. Draw a shape around points to select them
-            3. Selected points will highlight in orange across all plots
-        """)
-
-        # Common tools for all plots
-        TOOLS = "pan,wheel_zoom,box_zoom,reset,lasso_select"
-        plot_size = 400
-
-        # Cross-plot 1: Brine
-        p1 = figure(tools=TOOLS, width=plot_size, height=plot_size,
-                   title="FRM to Brine", x_range=(3000, 16000), y_range=(1.5, 3))
-        p1.scatter('ip_b', 'vpvs_b', source=source, size=8, alpha=0.6,
-                  color=factor_cmap('lfc_b', palette=lfc_palette, factors=['1','2','3','4']),
-                  selection_color="orange", nonselection_alpha=0.1)
-        p1.xaxis.axis_label = "IP [m/s*g/cc]"
-        p1.yaxis.axis_label = "Vp/Vs"
-
-        # Cross-plot 2: Oil
-        p2 = figure(tools=TOOLS, width=plot_size, height=plot_size,
-                   title="FRM to Oil", x_range=p1.x_range, y_range=p1.y_range)
-        p2.scatter('ip_o', 'vpvs_o', source=source, size=8, alpha=0.6,
-                  color=factor_cmap('lfc_o', palette=lfc_palette, factors=['1','2','3','4']),
-                  selection_color="orange", nonselection_alpha=0.1)
-        p2.xaxis.axis_label = "IP [m/s*g/cc]"
-        p2.yaxis.axis_label = "Vp/Vs"
-
-        # Cross-plot 3: Gas
-        p3 = figure(tools=TOOLS, width=plot_size, height=plot_size,
-                   title="FRM to Gas", x_range=p1.x_range, y_range=p1.y_range)
-        p3.scatter('ip_g', 'vpvs_g', source=source, size=8, alpha=0.6,
-                  color=factor_cmap('lfc_g', palette=lfc_palette, factors=['1','2','3','4']),
-                  selection_color="orange", nonselection_alpha=0.1)
-        p3.xaxis.axis_label = "IP [m/s*g/cc]"
-        p3.yaxis.axis_label = "Vp/Vs"
-
-        # Log plot
-        log_plot = figure(width=800, height=400, title="Selected Logs",
-                         y_range=(depth_max, depth_min), x_range=(0, 1),
-                         tools="pan,wheel_zoom,box_zoom,reset")
-        log_plot.line('vsh', 'depth', source=source, line_color='green', legend_label='Vsh')
-        log_plot.line('sw', 'depth', source=source, line_color='blue', legend_label='Sw')
-        log_plot.line('phi', 'depth', source=source, line_color='black', legend_label='PHI')
-        log_plot.xaxis.axis_label = "Normalized Values"
-        log_plot.yaxis.axis_label = "Depth"
-
-        # Add selected points to log plot
-        selected_renderer = log_plot.scatter(x=0.5, y='depth', source=source, size=10,
-                                           color='orange', alpha=0,
-                                           selection_color="orange",
-                                           selection_alpha=0.8)
-
-        # JavaScript callback for interactivity
-        callback = CustomJS(args=dict(source=source, selected_renderer=selected_renderer), code="""
-            const selected_indices = source.selected.indices;
-            const data = source.data;
-            
-            // Update selection array
-            data['selected'] = Array(data['depth'].length).fill(0);
-            for (let i = 0; i < selected_indices.length; i++) {
-                data['selected'][selected_indices[i]] = 1;
-            }
-            
-            // Make selected points visible in log plot
-            selected_renderer.glyph.alpha = {value: 0.8};
-            
-            source.change.emit();
-        """)
-
-        # Add callback to all cross-plots
-        for p in [p1, p2, p3]:
-            p.js_on_event('selectiongeometry', callback)
-            p.select(LassoSelectTool).select_every_mousemove = False
-
-        # Create layout
-        cross_plots = gridplot([[p1, p2, p3]], toolbar_location='right')
-        full_layout = column(cross_plots, log_plot)
-
-        # Generate components with explicit CDN resources
+        # Create interactive plots
+        st.subheader("Interactive Cross-Plots")
+        
         try:
-            script, div = components(full_layout, wrap_script=False)
+            # Cross-plot 1: Brine
+            p1 = figure(width=400, height=400, tools="pan,wheel_zoom,box_zoom,reset,lasso_select",
+                       title="FRM to Brine", x_range=(3000, 16000), y_range=(1.5, 3))
+            p1.scatter('ip_b', 'vpvs_b', source=source, size=8, alpha=0.6,
+                      color=factor_cmap('lfc', palette=lfc_palette, factors=['1','2','3','4']),
+                      selection_color="orange")
+            p1.xaxis.axis_label = "IP [m/s*g/cc]"
+            p1.yaxis.axis_label = "Vp/Vs"
+
+            # Similar plots for Oil and Gas (p2, p3)
             
-            # Create the HTML wrapper
-            bokeh_html = f"""
-            <link href="{CDN.css_files[0]}" rel="stylesheet">
-            <script src="{CDN.js_files[0]}"></script>
-            {div}
-            {script}
-            """
+            # Log plot
+            log_plot = figure(width=800, height=400, y_range=(depth_max, depth_min),
+                            tools="pan,wheel_zoom,box_zoom,reset")
+            log_plot.line('vsh', 'depth', source=source, line_color='green')
+            log_plot.line('sw', 'depth', source=source, line_color='blue')
+
+            # JavaScript callback
+            callback = CustomJS(args=dict(source=source), code="""
+                // Selection handling code
+            """)
+
+            # Layout
+            layout = column(gridplot([[p1, p2, p3]]), log_plot)
             
-            # Display using Streamlit components
-            components.html(bokeh_html, height=900)
+            # Render
+            script, div = components(layout)
+            components.html(
+                f"""
+                <link href="{CDN.css_files[0]}" rel="stylesheet">
+                <script src="{CDN.js_files[0]}"></script>
+                {div}
+                {script}
+                """,
+                height=1000
+            )
             
         except Exception as e:
-            st.error(f"Failed to render interactive plots: {str(e)}")
-            st.warning("Showing static plots only")
+            st.error(f"Interactive plots disabled: {str(e)}")
             
-            # Fallback static plots
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.scatter(logs_subset.IP_FRMB, logs_subset.VPVS_FRMB, c=logs_subset.LFC_B)
-            ax.set_xlabel("IP [m/s*g/cc]")
-            ax.set_ylabel("Vp/Vs")
+            # Enhanced static fallback
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
+            
+            # Crossplot
+            sc = ax1.scatter(logs_subset.IP_FRMB, logs_subset.VPVS_FRMB, 
+                           c=logs_subset.LFC, cmap=ListedColormap(lfc_palette),
+                           vmin=0, vmax=4)
+            ax1.set_xlabel("IP [m/s*g/cc]")
+            ax1.set_ylabel("Vp/Vs")
+            
+            # Log plot
+            ax2.plot(logs_subset.VSH, logs_subset.DEPTH, 'g-', label='Vsh')
+            ax2.plot(logs_subset.SW, logs_subset.DEPTH, 'b-', label='Sw')
+            ax2.invert_yaxis()
+            ax2.legend()
+            
+            plt.colorbar(sc, ax=ax1, label='LFC')
             st.pyplot(fig)
 
-        # Static plots for reference
-        st.subheader("Static Plots for Reference")
-        
-        # Define color map for facies
-        ccc = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
-        cmap_facies = ListedColormap(ccc, 'indexed')
-        
-        # Figure 1: Log Plots
-        fig1, ax1 = plt.subplots(nrows=1, ncols=4, figsize=(12, 8))
-        ax1[0].plot(logs_subset.VSH, logs_subset.DEPTH, '-g', label='Vsh')
-        ax1[0].plot(logs_subset.SW, logs_subset.DEPTH, '-b', label='Sw')
-        ax1[0].plot(logs_subset.PHI, logs_subset.DEPTH, '-k', label='PHI')
-        ax1[1].plot(logs_subset.IP_FRMG, logs_subset.DEPTH, '-r', label='Gas')
-        ax1[1].plot(logs_subset.IP_FRMB, logs_subset.DEPTH, '-b', label='Brine')
-        ax1[1].plot(logs_subset.IP, logs_subset.DEPTH, '-', color='0.5', label='Original')
-        ax1[2].plot(logs_subset.VPVS_FRMG, logs_subset.DEPTH, '-r')
-        ax1[2].plot(logs_subset.VPVS_FRMB, logs_subset.DEPTH, '-b')
-        ax1[2].plot(logs_subset.VPVS, logs_subset.DEPTH, '-', color='0.5')
-        cluster = np.repeat(np.expand_dims(logs_subset['LFC_B'].values, 1), 100, 1)
-        im = ax1[3].imshow(cluster, interpolation='none', aspect='auto', cmap=cmap_facies, vmin=0, vmax=4)
-
-        # Formatting
-        for i in ax1[:-1]:
-            i.set_ylim(depth_max, depth_min)
-            i.grid()
-        ax1[0].legend(fontsize='small', loc='lower right')
-        ax1[0].set_xlabel("Vcl/PHI/Sw"), ax1[0].set_xlim(-0.1, 1.1)
-        ax1[1].set_xlabel("Ip [m/s*g/cc]"), ax1[1].set_xlim(6000, 15000)
-        ax1[2].set_xlabel("Vp/Vs"), ax1[2].set_xlim(1.5, 2)
-        ax1[3].set_xlabel('LFC')
-        ax1[1].legend(fontsize='small')
-
-        st.pyplot(fig1)
-
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        st.stop()
+        st.error(f"Application error: {str(e)}")

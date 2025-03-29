@@ -8,6 +8,7 @@ from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
 from bokeh.layouts import gridplot, column
 from bokeh.transform import factor_cmap
 from bokeh.embed import components
+from bokeh.resources import CDN
 import streamlit.components.v1 as components
 
 # Function for VRH averaging
@@ -85,6 +86,7 @@ if uploaded_file is not None:
         sand_cutoff = st.number_input("Sand/Shale Cutoff (VSH)", value=0.12, key="sand_cutoff")
 
     # Process data
+    logs = logs.dropna(subset=required_columns)  # Remove rows with missing data
     shale = logs.VSH.values
     sand = 1 - shale - logs.PHI.values
     shaleN = shale / (shale + sand)
@@ -139,25 +141,26 @@ if uploaded_file is not None:
         max_value=int(logs.DEPTH.max()),
         value=(int(logs.DEPTH.min()), int(logs.DEPTH.max()))
     )
-    logs_subset = logs[(logs.DEPTH >= depth_min) & (logs.DEPTH <= depth_max)]
+    logs_subset = logs[(logs.DEPTH >= depth_min) & (logs.DEPTH <= depth_max)].copy()
 
-    # Prepare data source for Bokeh plots
-    source = ColumnDataSource(data=dict(
-        ip_b=logs_subset.IP_FRMB,
-        vpvs_b=logs_subset.VPVS_FRMB,
-        ip_o=logs_subset.IP_FRMO,
-        vpvs_o=logs_subset.VPVS_FRMO,
-        ip_g=logs_subset.IP_FRMG,
-        vpvs_g=logs_subset.VPVS_FRMG,
-        depth=logs_subset.DEPTH,
-        vsh=logs_subset.VSH,
-        sw=logs_subset.SW,
-        phi=logs_subset.PHI,
-        lfc_b=logs_subset.LFC_B.astype(str),
-        lfc_o=logs_subset.LFC_O.astype(str),
-        lfc_g=logs_subset.LFC_G.astype(str),
-        selected=np.zeros(len(logs_subset))
-    ))
+    # Prepare data source for Bokeh plots (convert to native Python types)
+    source_data = {
+        'ip_b': logs_subset.IP_FRMB.tolist(),
+        'vpvs_b': logs_subset.VPVS_FRMB.tolist(),
+        'ip_o': logs_subset.IP_FRMO.tolist(),
+        'vpvs_o': logs_subset.VPVS_FRMO.tolist(),
+        'ip_g': logs_subset.IP_FRMG.tolist(),
+        'vpvs_g': logs_subset.VPVS_FRMG.tolist(),
+        'depth': logs_subset.DEPTH.tolist(),
+        'vsh': logs_subset.VSH.tolist(),
+        'sw': logs_subset.SW.tolist(),
+        'phi': logs_subset.PHI.tolist(),
+        'lfc_b': logs_subset.LFC_B.astype(str).tolist(),
+        'lfc_o': logs_subset.LFC_O.astype(str).tolist(),
+        'lfc_g': logs_subset.LFC_G.astype(str).tolist(),
+        'selected': [0] * len(logs_subset)
+    }
+    source = ColumnDataSource(data=source_data)
 
     # Color mapping
     lfc_palette = ['#B3B3B3', 'blue', 'green', 'red', '#996633']
@@ -244,31 +247,12 @@ if uploaded_file is not None:
     cross_plots = gridplot([[p1, p2, p3]], toolbar_location='right')
     full_layout = column(cross_plots, log_plot)
 
-    # Generate components
+    # Generate components with explicit CDN resources
     script, div = components(full_layout)
-    
-    # Display using HTML with proper Bokeh resources
     components.html(
         f"""
-        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.css" rel="stylesheet">
-        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.css" rel="stylesheet">
-        <link href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.css" rel="stylesheet">
-        
-        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js"></script>
-        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.3.4.min.js"></script>
-        <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.3.4.min.js"></script>
-        
-        <style>
-            .bk-tool-icon-lasso-select {{
-                visibility: visible !important;
-            }}
-            .bk-toolbar-button {{
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                margin: 2px;
-            }}
-        </style>
-        
+        <link href="{CDN.css_files[0]}" rel="stylesheet">
+        <script src="{CDN.js_files[0]}"></script>
         {div}
         {script}
         """,

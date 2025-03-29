@@ -3,6 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.colors import ListedColormap
+
+# Fix for numpy compatibility before importing Bokeh
+try:
+    np.bool8 = np.bool_  # Create alias for compatibility
+except AttributeError:
+    pass
+
+# Now import Bokeh components
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, CustomJS, LassoSelectTool
 from bokeh.layouts import gridplot, column
@@ -10,11 +18,6 @@ from bokeh.transform import factor_cmap
 from bokeh.embed import components
 from bokeh.resources import CDN
 import streamlit.components.v1 as components
-
-# Check versions (for debugging)
-import bokeh
-st.sidebar.write(f"Bokeh v{bokeh.__version__}")
-st.sidebar.write(f"Streamlit v{st.__version__}")
 
 # Function for VRH averaging
 def vrh(volumes, k, mu):
@@ -100,7 +103,7 @@ if uploaded_file is not None:
         # Process data
         shale = logs.VSH.values
         sand = 1 - shale - logs.PHI.values
-        shaleN = shale / (shale + sand + 1e-10)  # Avoid division by zero
+        shaleN = shale / (shale + sand + 1e-10)
         sandN = sand / (shale + sand + 1e-10)
         k_u, k_l, mu_u, mu_l, k0, mu0 = vrh([shaleN, sandN], [k_sh, k_qz], [mu_sh, mu_qz])
 
@@ -110,14 +113,10 @@ if uploaded_file is not None:
         _, k_fl, _, _, _, _ = vrh([water, hc], [k_b, k_o], [0, 0])
         rho_fl = water * rho_b + hc * rho_o
 
-        # FRM calculations with error handling
-        try:
-            vpb, vsb, rhob, kb = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_b, k_b, k0, logs.PHI)
-            vpo, vso, rhoo, ko = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_o, k_o, k0, logs.PHI)
-            vpg, vsg, rhog, kg = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_g, k_g, k0, logs.PHI)
-        except Exception as e:
-            st.error(f"FRM calculation failed: {str(e)}")
-            st.stop()
+        # FRM calculations
+        vpb, vsb, rhob, kb = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_b, k_b, k0, logs.PHI)
+        vpo, vso, rhoo, ko = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_o, k_o, k0, logs.PHI)
+        vpg, vsg, rhog, kg = frm(logs.VP, logs.VS, logs.RHO, rho_fl, k_fl, rho_g, k_g, k0, logs.PHI)
 
         # Classify litho-fluid
         brine_sand = ((logs.VSH <= sand_cutoff) & (logs.SW >= 0.65))
@@ -139,19 +138,11 @@ if uploaded_file is not None:
             logs[f'IS_FRM{suffix}'] = logs[f'VS_FRM{suffix}'] * logs[f'RHO_FRM{suffix}']
             logs[f'VPVS_FRM{suffix}'] = logs[f'VP_FRM{suffix}'] / (logs[f'VS_FRM{suffix}'] + 1e-10)
 
-        # LFC (Litho-Fluid Class)
+        # LFC classification
         logs['LFC'] = np.select(
-            [
-                shale_flag,
-                brine_sand,
-                oil_sand
-            ],
-            [
-                4,  # Shale
-                1,  # Brine sand
-                2   # Oil sand
-            ],
-            default=3  # Gas sand
+            [shale_flag, brine_sand, oil_sand],
+            [4, 1, 2],  # Shale, Brine sand, Oil sand
+            default=3    # Gas sand
         )
 
         # Depth range selection
@@ -165,17 +156,17 @@ if uploaded_file is not None:
 
         # Prepare data source for Bokeh plots
         source_data = {
-            'ip_b': [float(x) for x in logs_subset.IP_FRMB],
-            'vpvs_b': [float(x) for x in logs_subset.VPVS_FRMB],
-            'ip_o': [float(x) for x in logs_subset.IP_FRMO],
-            'vpvs_o': [float(x) for x in logs_subset.VPVS_FRMO],
-            'ip_g': [float(x) for x in logs_subset.IP_FRMG],
-            'vpvs_g': [float(x) for x in logs_subset.VPVS_FRMG],
-            'depth': [float(x) for x in logs_subset.DEPTH],
-            'vsh': [float(x) for x in logs_subset.VSH],
-            'sw': [float(x) for x in logs_subset.SW],
-            'phi': [float(x) for x in logs_subset.PHI],
-            'lfc': [str(int(x)) for x in logs_subset.LFC],
+            'ip_b': logs_subset.IP_FRMB.tolist(),
+            'vpvs_b': logs_subset.VPVS_FRMB.tolist(),
+            'ip_o': logs_subset.IP_FRMO.tolist(),
+            'vpvs_o': logs_subset.VPVS_FRMO.tolist(),
+            'ip_g': logs_subset.IP_FRMG.tolist(),
+            'vpvs_g': logs_subset.VPVS_FRMG.tolist(),
+            'depth': logs_subset.DEPTH.tolist(),
+            'vsh': logs_subset.VSH.tolist(),
+            'sw': logs_subset.SW.tolist(),
+            'phi': logs_subset.PHI.tolist(),
+            'lfc': logs_subset.LFC.astype(str).tolist(),
             'selected': [0] * len(logs_subset)
         }
         source = ColumnDataSource(data=source_data)
@@ -196,24 +187,52 @@ if uploaded_file is not None:
             p1.xaxis.axis_label = "IP [m/s*g/cc]"
             p1.yaxis.axis_label = "Vp/Vs"
 
-            # Similar plots for Oil and Gas (p2, p3)
-            
+            # Cross-plot 2: Oil
+            p2 = figure(width=400, height=400, tools=p1.tools,
+                       title="FRM to Oil", x_range=p1.x_range, y_range=p1.y_range)
+            p2.scatter('ip_o', 'vpvs_o', source=source, size=8, alpha=0.6,
+                      color=factor_cmap('lfc', palette=lfc_palette, factors=['1','2','3','4']),
+                      selection_color="orange")
+            p2.xaxis.axis_label = "IP [m/s*g/cc]"
+            p2.yaxis.axis_label = "Vp/Vs"
+
+            # Cross-plot 3: Gas
+            p3 = figure(width=400, height=400, tools=p1.tools,
+                       title="FRM to Gas", x_range=p1.x_range, y_range=p1.y_range)
+            p3.scatter('ip_g', 'vpvs_g', source=source, size=8, alpha=0.6,
+                      color=factor_cmap('lfc', palette=lfc_palette, factors=['1','2','3','4']),
+                      selection_color="orange")
+            p3.xaxis.axis_label = "IP [m/s*g/cc]"
+            p3.yaxis.axis_label = "Vp/Vs"
+
             # Log plot
             log_plot = figure(width=800, height=400, y_range=(depth_max, depth_min),
                             tools="pan,wheel_zoom,box_zoom,reset")
-            log_plot.line('vsh', 'depth', source=source, line_color='green')
-            log_plot.line('sw', 'depth', source=source, line_color='blue')
+            log_plot.line('vsh', 'depth', source=source, line_color='green', legend_label='Vsh')
+            log_plot.line('sw', 'depth', source=source, line_color='blue', legend_label='Sw')
+            log_plot.line('phi', 'depth', source=source, line_color='black', legend_label='PHI')
+            log_plot.xaxis.axis_label = "Normalized Values"
+            log_plot.yaxis.axis_label = "Depth"
 
             # JavaScript callback
             callback = CustomJS(args=dict(source=source), code="""
-                // Selection handling code
+                const selected_indices = source.selected.indices;
+                const data = source.data;
+                data['selected'] = Array(data['depth'].length).fill(0);
+                for (let i = 0; i < selected_indices.length; i++) {
+                    data['selected'][selected_indices[i]] = 1;
+                }
+                source.change.emit();
             """)
 
-            # Layout
+            for p in [p1, p2, p3]:
+                p.js_on_event('selectiongeometry', callback)
+                p.select(LassoSelectTool).select_every_mousemove = False
+
+            # Layout and render
             layout = column(gridplot([[p1, p2, p3]]), log_plot)
-            
-            # Render
             script, div = components(layout)
+            
             components.html(
                 f"""
                 <link href="{CDN.css_files[0]}" rel="stylesheet">
@@ -226,9 +245,8 @@ if uploaded_file is not None:
             
         except Exception as e:
             st.error(f"Interactive plots disabled: {str(e)}")
-            
             # Enhanced static fallback
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
             
             # Crossplot
             sc = ax1.scatter(logs_subset.IP_FRMB, logs_subset.VPVS_FRMB, 
@@ -236,14 +254,17 @@ if uploaded_file is not None:
                            vmin=0, vmax=4)
             ax1.set_xlabel("IP [m/s*g/cc]")
             ax1.set_ylabel("Vp/Vs")
+            ax1.set_title("Brine Substitute")
+            plt.colorbar(sc, ax=ax1, label='LFC')
             
             # Log plot
             ax2.plot(logs_subset.VSH, logs_subset.DEPTH, 'g-', label='Vsh')
             ax2.plot(logs_subset.SW, logs_subset.DEPTH, 'b-', label='Sw')
+            ax2.plot(logs_subset.PHI, logs_subset.DEPTH, 'k-', label='PHI')
             ax2.invert_yaxis()
             ax2.legend()
+            ax2.set_title("Well Logs")
             
-            plt.colorbar(sc, ax=ax1, label='LFC')
             st.pyplot(fig)
 
     except Exception as e:

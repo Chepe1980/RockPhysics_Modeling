@@ -109,20 +109,19 @@ def generate_synthetic_gather(vp, vs, rho, scenario_name, thickness=10):
         st.subheader(f"Synthetic Gather: {scenario_name} Scenario")
         fig, ax = plt.subplots(figsize=(10, 6))
         
+        # Corrected syn_angle_gather call
         tp.syn_angle_gather(
-            min_plot_time=0.15, 
-            max_plot_time=0.3, 
-            lyr_times=lyr_times, 
-            thickness=thickness, 
+            syn_seis=syn_zoep,
+            rc_zoep=rc_zoep,
+            t=t,
+            excursion=2,
+            lyr_times=lyr_times,
+            thickness=thickness,
             top_layer=top_layer,
             bottom_layer=bottom_layer,
             vp_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[0],
             vs_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[1],
-            rho_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[2],
-            syn_seis=syn_zoep, 
-            rc_zoep=rc_zoep, 
-            t=t, 
-            excursion=2
+            rho_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[2]
         )
         
         st.pyplot(fig)

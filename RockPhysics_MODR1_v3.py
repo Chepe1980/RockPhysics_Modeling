@@ -43,82 +43,97 @@ def frm(vp1, vs1, rho1, rho_f1, k_f1, rho_f2, k_f2, k0, phi):
 # Function to generate synthetic gather
 def generate_synthetic_gather(vp, vs, rho, scenario_name, thickness=10):
     """Generate synthetic angle gather for given elastic properties"""
-    # Create model
-    nangles = tp.n_angles(0, 45)  # Generate number of angles (0-45°)
-    
-    # Calculate reflection coefficients
-    rc_zoep = []
-    theta1 = []
-    
-    for angle in range(0, nangles):
-        theta1_samp, rc_1, rc_2 = tp.calc_theta_rc(
-            theta1_min=0, 
-            theta1_step=1, 
-            vp=vp, 
-            vs=vs, 
-            rho=rho, 
-            ang=angle
-        )
-        theta1.append(theta1_samp)
-        rc_zoep.append([rc_1[0, 0], rc_2[0, 0]])
-    
-    # Generate wavelet
-    wlt_time, wlt_amp = wavelet.ricker(
-        sample_rate=0.0001, 
-        length=0.128, 
-        c_freq=30
-    )
-    
-    # Time samples
-    t_samp = tp.time_samples(t_min=0, t_max=0.5)
-    
-    # Generate synthetic seismograms
-    syn_zoep = []
-    lyr_times = []
-    
-    for angle in range(0, nangles):
-        # Calculate interface depths and times
-        z_int = tp.int_depth(h_int=[500.0], thickness=thickness)
-        t_int = tp.calc_times(z_int, vp)
-        lyr_times.append(t_int)
+    try:
+        # Verify input dimensions
+        if len(vp) != 3 or len(vs) != 3 or len(rho) != 3:
+            raise ValueError("Input arrays must have exactly 3 elements for 3-layer model")
         
-        # Digitize model and convolve with wavelet
-        rc = tp.mod_digitize(rc_zoep[angle], t_int, t_samp)
-        s = tp.syn_seis(ref_coef=rc, wav_amp=wlt_amp)
-        syn_zoep.append(s)
+        # Create model
+        nangles = tp.n_angles(0, 45)  # Generate number of angles (0-45°)
+        
+        # Calculate reflection coefficients
+        rc_zoep = []
+        theta1 = []
+        
+        for angle in range(nangles):
+            theta1_samp, rc_1, rc_2 = tp.calc_theta_rc(
+                theta1_min=0, 
+                theta1_step=1, 
+                vp=vp, 
+                vs=vs, 
+                rho=rho, 
+                ang=angle
+            )
+            theta1.append(theta1_samp)
+            rc_zoep.append([rc_1[0, 0], rc_2[0, 0]])
+        
+        # Generate wavelet
+        wlt_time, wlt_amp = wavelet.ricker(
+            sample_rate=0.0001, 
+            length=0.128, 
+            c_freq=30
+        )
+        
+        # Time samples
+        t_samp = tp.time_samples(t_min=0, t_max=0.5)
+        
+        # Generate synthetic seismograms
+        syn_zoep = []
+        lyr_times = []
+        
+        for angle in range(nangles):
+            # Calculate interface depths and times
+            z_int = tp.int_depth(h_int=[500.0], thickness=thickness)
+            t_int = tp.calc_times(z_int, vp)
+            lyr_times.append(t_int)
+            
+            # Digitize model and convolve with wavelet
+            rc = tp.mod_digitize(rc_zoep[angle], t_int, t_samp)
+            s = tp.syn_seis(ref_coef=rc, wav_amp=wlt_amp)
+            syn_zoep.append(s)
+        
+        # Convert to numpy arrays
+        syn_zoep = np.array(syn_zoep)
+        rc_zoep = np.array(rc_zoep)
+        t = np.array(t_samp)
+        lyr_times = np.array(lyr_times)
+        
+        # Get layer indices
+        lyr1_indx, lyr2_indx = tp.layer_index(lyr_times)
+        
+        # Prepare data for plotting
+        top_layer = np.array([syn_zoep[trace, lyr1_indx[trace]] for trace in range(nangles)])
+        bottom_layer = np.array([syn_zoep[trace, lyr2_indx[trace]] for trace in range(nangles)])
+        
+        # Plot the gather
+        st.subheader(f"Synthetic Gather: {scenario_name} Scenario")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        tp.syn_angle_gather(
+            min_plot_time=0.15, 
+            max_plot_time=0.3, 
+            lyr_times=lyr_times, 
+            thickness=thickness, 
+            top_layer=top_layer,
+            bottom_layer=bottom_layer,
+            vp_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[0],
+            vs_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[1],
+            rho_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[2],
+            syn_seis=syn_zoep, 
+            rc_zoep=rc_zoep, 
+            t=t, 
+            excursion=2
+        )
+        
+        st.pyplot(fig)
+        plt.close()
+        
+        return syn_zoep, rc_zoep
     
-    # Convert to numpy arrays
-    syn_zoep = np.array(syn_zoep)
-    rc_zoep = np.array(rc_zoep)
-    t = np.array(t_samp)
-    lyr_times = np.array(lyr_times)
-    
-    # Get layer indices
-    lyr1_indx, lyr2_indx = tp.layer_index(lyr_times)
-    
-    # Plot the gather
-    st.subheader(f"Synthetic Gather: {scenario_name} Scenario")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    tp.syn_angle_gather(
-        min_plot_time=0.15, 
-        max_plot_time=0.3, 
-        lyr_times=lyr_times, 
-        thickness=thickness, 
-        top_layer=[syn_zoep[trace, lyr1_indx[trace]] for trace in range(nangles)],
-        bottom_layer=[syn_zoep[trace, lyr2_indx[trace]] for trace in range(nangles)],
-        vp_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[0],
-        vs_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[1],
-        rho_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[2],
-        syn_seis=syn_zoep, 
-        rc_zoep=rc_zoep, 
-        t=t, 
-        excursion=2
-    )
-    
-    st.pyplot(fig)
-    
-    return syn_zoep, rc_zoep
+    except Exception as e:
+        st.error(f"Error generating synthetic gather: {str(e)}")
+        st.error(f"Input shapes - VP: {np.shape(vp)}, VS: {np.shape(vs)}, RHO: {np.shape(rho)}")
+        return None, None
 
 # Streamlit App
 st.title("Fluid Replacement Modeling (FRM) with Synthetic Seismic Generation")
@@ -272,16 +287,14 @@ if uploaded_file is not None:
     st.pyplot(fig1)
     st.pyplot(fig2)
 
-    # =============================================
     # Synthetic Gather Generation
-    # =============================================
     st.header("Synthetic Seismic Gathers")
     
     # Get data at selected depth
     selected_data = logs_subset[np.abs(logs_subset.DEPTH - selected_depth) < 0.1]
     
     if len(selected_data) > 0:
-        # Create 3-layer model (upper shale, target zone, lower shale)
+        # Create base properties (shale)
         vp_base = selected_data.VP.values[0]
         vs_base = selected_data.VS.values[0]
         rho_base = selected_data.RHO.values[0]
@@ -301,9 +314,9 @@ if uploaded_file is not None:
         
         for name, (vp, vs, rho) in scenarios.items():
             # Create 3-layer model (shale-target-shale)
-            vp_model = [vp_base, vp, vp_base]
-            vs_model = [vs_base, vs, vs_base]
-            rho_model = [rho_base, rho, rho_base]
+            vp_model = [vp_base-100, vp, vp_base+100]  # Small variation
+            vs_model = [vs_base-50, vs, vs_base+50]    # Small variation
+            rho_model = [rho_base-0.1, rho, rho_base+0.1]  # Small variation
             
             generate_synthetic_gather(
                 vp=vp_model,

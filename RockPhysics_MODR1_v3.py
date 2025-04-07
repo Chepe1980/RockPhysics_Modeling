@@ -40,7 +40,7 @@ def frm(vp1, vs1, rho1, rho_f1, k_f1, rho_f2, k_f2, k0, phi):
 
     return vp2 * 1000, vs2 * 1000, rho2, k_s2
 
-# Function to generate synthetic gather
+# Function to generate synthetic gather (CORRECTED VERSION)
 def generate_synthetic_gather(vp, vs, rho, scenario_name, thickness=10):
     """Generate synthetic angle gather for given elastic properties"""
     try:
@@ -109,19 +109,19 @@ def generate_synthetic_gather(vp, vs, rho, scenario_name, thickness=10):
         st.subheader(f"Synthetic Gather: {scenario_name} Scenario")
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Corrected syn_angle_gather call
+        # CORRECTED syn_angle_gather call with proper parameter names
         tp.syn_angle_gather(
-            syn_seis=syn_zoep,
-            rc_zoep=rc_zoep,
-            t=t,
-            excursion=2,
-            lyr_times=lyr_times,
-            thickness=thickness,
-            top_layer=top_layer,
-            bottom_layer=bottom_layer,
-            vp_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[0],
-            vs_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[1],
-            rho_dig=tp.t_domain(t=t, vp=vp, vs=vs, rho=rho, lyr1_index=lyr1_indx, lyr2_index=lyr2_indx)[2]
+            seis=syn_zoep,        # Correct parameter name
+            rc=rc_zoep,           # Correct parameter name  
+            time=t,               # Correct parameter name
+            exc=2,                # Correct parameter name
+            lyr_time=lyr_times,   # Correct parameter name
+            thick=thickness,      # Correct parameter name
+            top=top_layer,        # Correct parameter name
+            bottom=bottom_layer,  # Correct parameter name
+            vp=vp,
+            vs=vs,
+            rho=rho
         )
         
         st.pyplot(fig)
